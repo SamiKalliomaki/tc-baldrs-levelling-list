@@ -35,23 +35,51 @@ async function loadListNames() {
   try {
     const response = await fetch("data.json");
     const data = await response.json();
-    const listSelect = document.getElementById("list-select");
+    const container = document.getElementById("list-checkboxes");
+    const defaultChecked = ["Baldr's List 1", "Baldr's List 2", "Baldr's List 3"];
+    const storedJson = localStorage.getItem('selectedLists');
+    const stored = storedJson ? JSON.parse(storedJson) : null;
+    let index = 0;
     for (const listName in data) {
-      const option = document.createElement("option");
-      option.value = listName;
-      option.textContent = listName;
-      listSelect.appendChild(option);
+      const checked = stored ? stored.includes(listName) : defaultChecked.includes(listName);
+      const id = `list-cb-${index}`;
+      const label = document.createElement("label");
+      label.htmlFor = id;
+      label.className = "flex items-center gap-1.5 cursor-pointer select-none";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.id = id;
+      cb.name = "list-select";
+      cb.value = listName;
+      cb.checked = checked;
+      cb.className = "h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600";
+      cb.addEventListener("change", saveSelectedLists);
+      const span = document.createElement("span");
+      span.textContent = listName;
+      label.appendChild(cb);
+      label.appendChild(span);
+      container.appendChild(label);
+      index++;
     }
   } catch (error) {
     console.error("Error loading list names:", error);
   }
 }
 
+function saveSelectedLists() {
+  const selected = Array.from(
+    document.querySelectorAll('#list-checkboxes input[type="checkbox"]:checked')
+  ).map(cb => cb.value);
+  localStorage.setItem('selectedLists', JSON.stringify(selected));
+}
+
 async function fetchData() {
     const apiKey = document.getElementById("api-key").value;
 
-    const listSelectForError = document.getElementById("list-select");
-    const selectedListForError = listSelectForError.value || 'None Selected';
+    const selectedLists = Array.from(
+        document.querySelectorAll('#list-checkboxes input[type="checkbox"]:checked')
+    ).map(cb => cb.value);
+    const selectedListForError = selectedLists.length ? selectedLists.join(', ') : 'None Selected';
     const validStoredInfo = getValidStoredUserInfo();
 
     if (apiKey === "") {
@@ -62,11 +90,8 @@ async function fetchData() {
 
     localStorage.setItem("apiKey", apiKey);
 
-    const listSelect = document.getElementById("list-select");
-    const selectedList = listSelect.value;
-
-    if (!selectedList) {
-        alert("Please select a list.");
+    if (selectedLists.length === 0) {
+        alert("Please select at least one list.");
         errorLogly(validStoredInfo.name, validStoredInfo.level, "No list selected", 'None Selected');
         return;
     }
@@ -130,12 +155,38 @@ async function fetchData() {
 
         const response = await fetch("data.json");
         const data = await response.json();
-        tableData = data[selectedList];
+
+        // Merge all selected lists
+        let merged = [];
+        for (const listName of selectedLists) {
+            if (data[listName]) merged = merged.concat(data[listName]);
+        }
+
+        // Apply min/max total filter
+        const minVal = localStorage.getItem('filterTotalMin');
+        const maxVal = localStorage.getItem('filterTotalMax');
+        const totalMin = minVal !== null && minVal !== '' ? parseInt(minVal, 10) : 0;
+        const totalMax = maxVal !== null && maxVal !== '' ? parseInt(maxVal, 10) : Infinity;
+        merged = merged.filter(row => {
+            const t = parseTotalValue(row.total);
+            return t >= totalMin && t <= totalMax;
+        });
+
+        // Random sample down to 80 if needed
+        if (merged.length > 80) {
+            for (let i = merged.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [merged[i], merged[j]] = [merged[j], merged[i]];
+            }
+            merged = merged.slice(0, 80);
+        }
+
+        tableData = merged;
 
         if (!tableData || tableData.length === 0) {
             displayNoDataMessage();
             hideLoadingIndicator();
-            if (!fetchError) fetchError = `No data found for list: ${selectedList}`;
+            if (!fetchError) fetchError = `No data found for lists: ${selectedLists.join(', ')}`;
             return;
         }
 
@@ -206,7 +257,7 @@ async function fetchData() {
         const finalLevel = currentFetchUserLevel !== null ? currentFetchUserLevel : finalStoredInfo.level;
         const finalError = fetchError || null;
 
-        errorLogly(finalName, finalLevel, finalError, selectedList);
+        errorLogly(finalName, finalLevel, finalError, selectedListForError);
     }
 }
 
