@@ -198,6 +198,31 @@
                 id="data-table"
                 class="py-4 px-4 sm:px-6 lg:px-8 text-left hidden"
               >
+                <div class="flex flex-wrap items-center gap-3 mb-4 justify-center">
+                  <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Filter by Total:</span>
+                  <div class="flex items-center gap-2">
+                    <label for="filter-total-min" class="text-sm text-gray-500 dark:text-gray-400">Min</label>
+                    <input
+                      type="number"
+                      id="filter-total-min"
+                      min="0"
+                      placeholder="0"
+                      oninput="applyTotalFilter()"
+                      class="w-28 rounded-md border-0 bg-transparent ring-1 ring-inset ring-gray-300 dark:ring-gray-600 text-gray-900 dark:text-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 text-sm px-3 py-1.5"
+                    />
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <label for="filter-total-max" class="text-sm text-gray-500 dark:text-gray-400">Max</label>
+                    <input
+                      type="number"
+                      id="filter-total-max"
+                      min="0"
+                      placeholder="∞"
+                      oninput="applyTotalFilter()"
+                      class="w-28 rounded-md border-0 bg-transparent ring-1 ring-inset ring-gray-300 dark:ring-gray-600 text-gray-900 dark:text-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 text-sm px-3 py-1.5"
+                    />
+                  </div>
+                </div>
                 <div
                   class="-mx-4 mt-10 ring-1 ring-gray-300 sm:mx-0 sm:rounded-lg"
                 >

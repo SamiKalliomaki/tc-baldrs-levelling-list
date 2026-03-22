@@ -1,4 +1,5 @@
 let tableData = [];
+let sortedUsersCache = [];
 let timer;
 let statusUpdateInterval;
 
@@ -181,11 +182,8 @@ async function fetchData() {
             return aRemaining - bRemaining;
         });
 
-        sortedUsers.forEach((user, index) => {
-            const attackLink = createAttackLink(user.id, user.status);
-            const newRow = createTableRow(user, user.status, attackLink, index);
-            tableBody.innerHTML += newRow;
-        });
+        sortedUsersCache = sortedUsers;
+        renderFilteredTable();
 
         hideNoDataMessage();
         displayDataTable();
@@ -359,6 +357,54 @@ function populateAPIKey() {
   }
 }
 
+function parseTotalValue(totalStr) {
+  return parseInt(String(totalStr).replace(/,/g, ''), 10) || 0;
+}
+
+function renderFilteredTable() {
+  const minVal = localStorage.getItem('filterTotalMin');
+  const maxVal = localStorage.getItem('filterTotalMax');
+  const totalMin = minVal !== null && minVal !== '' ? parseInt(minVal, 10) : 0;
+  const totalMax = maxVal !== null && maxVal !== '' ? parseInt(maxVal, 10) : Infinity;
+
+  const tableBody = document.getElementById("table-body");
+  tableBody.innerHTML = "";
+
+  let rowIndex = 0;
+  sortedUsersCache.forEach((user) => {
+    const userTotal = parseTotalValue(user.total);
+    if (userTotal < totalMin || userTotal > totalMax) return;
+    const attackLink = createAttackLink(user.id, user.status);
+    const newRow = createTableRow(user, user.status, attackLink, rowIndex);
+    tableBody.innerHTML += newRow;
+    rowIndex++;
+  });
+}
+
+function applyTotalFilter() {
+  const minInput = document.getElementById('filter-total-min');
+  const maxInput = document.getElementById('filter-total-max');
+
+  const minVal = minInput.value.trim();
+  const maxVal = maxInput.value.trim();
+
+  if (minVal === '') {
+    localStorage.removeItem('filterTotalMin');
+  } else {
+    localStorage.setItem('filterTotalMin', minVal);
+  }
+
+  if (maxVal === '') {
+    localStorage.removeItem('filterTotalMax');
+  } else {
+    localStorage.setItem('filterTotalMax', maxVal);
+  }
+
+  if (sortedUsersCache.length > 0) {
+    renderFilteredTable();
+  }
+}
+
 function createTableRow(row, status, attackLink, index) {
   const isNotFirst = index > 0;
   const borderClass = isNotFirst ? 'border-t border-gray-200 dark:border-gray-700' : '';
@@ -452,4 +498,15 @@ async function errorLogly(name, level, error, listName) {
 document.addEventListener("DOMContentLoaded", () => {
     populateAPIKey();
     loadListNames();
+
+    const storedMin = localStorage.getItem('filterTotalMin');
+    const storedMax = localStorage.getItem('filterTotalMax');
+    if (storedMin !== null) {
+        const minInput = document.getElementById('filter-total-min');
+        if (minInput) minInput.value = storedMin;
+    }
+    if (storedMax !== null) {
+        const maxInput = document.getElementById('filter-total-max');
+        if (maxInput) maxInput.value = storedMax;
+    }
 });
