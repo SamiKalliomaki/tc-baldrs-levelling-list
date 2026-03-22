@@ -172,6 +172,16 @@ async function fetchData() {
             return t >= totalMin && t <= totalMax;
         });
 
+        // Apply min/max level filter
+        const lvlMinVal = localStorage.getItem('filterLevelMin');
+        const lvlMaxVal = localStorage.getItem('filterLevelMax');
+        const levelMin = lvlMinVal !== null && lvlMinVal !== '' ? parseInt(lvlMinVal, 10) : 0;
+        const levelMax = lvlMaxVal !== null && lvlMaxVal !== '' ? parseInt(lvlMaxVal, 10) : Infinity;
+        merged = merged.filter(row => {
+            const l = parseLevelValue(row.lvl);
+            return l >= levelMin && l <= levelMax;
+        });
+
         // Random sample down to 80 if needed
         if (merged.length > 80) {
             for (let i = merged.length - 1; i > 0; i--) {
@@ -412,11 +422,20 @@ function parseTotalValue(totalStr) {
   return parseInt(String(totalStr).replace(/,/g, ''), 10) || 0;
 }
 
+function parseLevelValue(lvlStr) {
+  return parseInt(String(lvlStr), 10) || 0;
+}
+
 function renderFilteredTable() {
   const minVal = localStorage.getItem('filterTotalMin');
   const maxVal = localStorage.getItem('filterTotalMax');
   const totalMin = minVal !== null && minVal !== '' ? parseInt(minVal, 10) : 0;
   const totalMax = maxVal !== null && maxVal !== '' ? parseInt(maxVal, 10) : Infinity;
+
+  const lvlMinVal = localStorage.getItem('filterLevelMin');
+  const lvlMaxVal = localStorage.getItem('filterLevelMax');
+  const levelMin = lvlMinVal !== null && lvlMinVal !== '' ? parseInt(lvlMinVal, 10) : 0;
+  const levelMax = lvlMaxVal !== null && lvlMaxVal !== '' ? parseInt(lvlMaxVal, 10) : Infinity;
 
   const tableBody = document.getElementById("table-body");
   tableBody.innerHTML = "";
@@ -425,6 +444,8 @@ function renderFilteredTable() {
   sortedUsersCache.forEach((user) => {
     const userTotal = parseTotalValue(user.total);
     if (userTotal < totalMin || userTotal > totalMax) return;
+    const userLevel = parseLevelValue(user.lvl);
+    if (userLevel < levelMin || userLevel > levelMax) return;
     const attackLink = createAttackLink(user.id, user.status);
     const newRow = createTableRow(user, user.status, attackLink, rowIndex);
     tableBody.innerHTML += newRow;
@@ -449,6 +470,30 @@ function applyTotalFilter() {
     localStorage.removeItem('filterTotalMax');
   } else {
     localStorage.setItem('filterTotalMax', maxVal);
+  }
+
+  if (sortedUsersCache.length > 0) {
+    renderFilteredTable();
+  }
+}
+
+function applyLevelFilter() {
+  const minInput = document.getElementById('filter-level-min');
+  const maxInput = document.getElementById('filter-level-max');
+
+  const minVal = minInput.value.trim();
+  const maxVal = maxInput.value.trim();
+
+  if (minVal === '') {
+    localStorage.removeItem('filterLevelMin');
+  } else {
+    localStorage.setItem('filterLevelMin', minVal);
+  }
+
+  if (maxVal === '') {
+    localStorage.removeItem('filterLevelMax');
+  } else {
+    localStorage.setItem('filterLevelMax', maxVal);
   }
 
   if (sortedUsersCache.length > 0) {
@@ -559,5 +604,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (storedMax !== null) {
         const maxInput = document.getElementById('filter-total-max');
         if (maxInput) maxInput.value = storedMax;
+    }
+
+    const storedLevelMin = localStorage.getItem('filterLevelMin');
+    const storedLevelMax = localStorage.getItem('filterLevelMax');
+    if (storedLevelMin !== null) {
+        const levelMinInput = document.getElementById('filter-level-min');
+        if (levelMinInput) levelMinInput.value = storedLevelMin;
+    }
+    if (storedLevelMax !== null) {
+        const levelMaxInput = document.getElementById('filter-level-max');
+        if (levelMaxInput) levelMaxInput.value = storedLevelMax;
     }
 });
