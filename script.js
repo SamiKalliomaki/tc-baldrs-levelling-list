@@ -218,7 +218,8 @@ async function fetchData() {
                 }
 
                 const status = formatStatus(userData.status);
-                return { ...row, status };
+                const hospitalUntil = userData.status.state === "Hospital" ? userData.status.until : null;
+                return { ...row, status, hospitalUntil };
             } catch (error) {
                 console.error(`Network error fetching data for user ${row.id}:`, error);
                  if (!fetchError) fetchError = `Network error during target fetch for ${row.id}: ${error.message}`;
@@ -230,17 +231,14 @@ async function fetchData() {
 
 
         const sortedUsers = usersWithStatus.sort((a, b) => {
-            if (a.status === "Okay" && b.status !== "Okay") return -1;
-            if (a.status !== "Okay" && b.status === "Okay") return 1;
-            if (a.status === "Okay" && b.status === "Okay") return 0;
+            const aOkay = !a.hospitalUntil || a.hospitalUntil <= Date.now() / 1000;
+            const bOkay = !b.hospitalUntil || b.hospitalUntil <= Date.now() / 1000;
 
-            const aRemaining = parseHospitalTime(a.status);
-            const bRemaining = parseHospitalTime(b.status);
+            if (aOkay && !bOkay) return -1;
+            if (!aOkay && bOkay) return 1;
+            if (aOkay && bOkay) return 0;
 
-            if (aRemaining === Infinity && bRemaining !== Infinity) return 1;
-            if (aRemaining !== Infinity && bRemaining === Infinity) return -1;
-
-            return aRemaining - bRemaining;
+            return a.hospitalUntil - b.hospitalUntil;
         });
 
         sortedUsersCache = sortedUsers;
@@ -291,13 +289,6 @@ function startCountdown() {
   }, 1000);
 }
 
-function parseHospitalTime(status) {
-  const timeMatch = status.match(/\((\d+)m (\d+)s\)/);
-  if (!timeMatch) return Infinity;
-  const [_, minutes, seconds] = timeMatch;
-  return parseInt(minutes) * 60 + parseInt(seconds);
-}
-
 function displayNoDataMessage() {
   const noDataMessage = document.getElementById("no-data-message");
   noDataMessage.classList.remove("hidden");
@@ -337,36 +328,37 @@ function formatStatus(status) {
   return formattedStatus;
 }
 
+function getStatusDisplay(user) {
+  if (user.hospitalUntil) {
+    const remaining = user.hospitalUntil - Date.now() / 1000;
+    if (remaining > 0) {
+      const minutes = Math.floor(remaining / 60);
+      const seconds = Math.floor(remaining % 60);
+      return `Hospitalized (${minutes}m ${seconds}s)`;
+    }
+    return "Okay";
+  }
+  return user.status;
+}
+
 function updateStatus() {
   const rows = document.querySelectorAll("#table-body tr");
   rows.forEach((row) => {
+    const rowId = row.getAttribute("data-id");
+    if (!rowId) return;
+
+    const cached = sortedUsersCache.find(u => String(u.id) === rowId);
+    if (!cached || !cached.hospitalUntil) return;
+
+    const displayStatus = getStatusDisplay(cached);
     const statusCell = row.querySelector("td:nth-child(8)");
-    if (!statusCell) return;
+    if (statusCell) statusCell.textContent = displayStatus;
 
-    const currentStatus = statusCell.textContent.trim();
-    const remaining = parseHospitalTime(currentStatus);
-
-    if (remaining === Infinity) return;
-
-    const updatedRemaining = remaining - 1;
-
-    if (updatedRemaining <= 0) {
-      statusCell.textContent = "Okay";
-      const profileLink = row.querySelector("td:first-child a[href*='XID']");
-      if (profileLink) {
-          const userIdMatch = profileLink.href.match(/XID=(\d+)/);
-           if (userIdMatch && userIdMatch[1]) {
-                const userId = userIdMatch[1];
-                const attackLinkCell = row.querySelector("td:nth-child(9)");
-                if (attackLinkCell) {
-                   attackLinkCell.innerHTML = createAttackLink(userId, "Okay");
-                }
-           }
+    if (displayStatus === "Okay") {
+      const attackLinkCell = row.querySelector("td:nth-child(9)");
+      if (attackLinkCell) {
+        attackLinkCell.innerHTML = createAttackLink(rowId, "Okay");
       }
-    } else {
-      const updatedMinutes = Math.floor(updatedRemaining / 60);
-      const updatedSeconds = updatedRemaining % 60;
-      statusCell.textContent = `Hospitalized (${updatedMinutes}m ${updatedSeconds}s)`;
     }
   });
 }
@@ -446,8 +438,9 @@ function renderFilteredTable() {
     if (userTotal < totalMin || userTotal > totalMax) return;
     const userLevel = parseLevelValue(user.lvl);
     if (userLevel < levelMin || userLevel > levelMax) return;
-    const attackLink = createAttackLink(user.id, user.status);
-    const newRow = createTableRow(user, user.status, attackLink, rowIndex);
+    const displayStatus = getStatusDisplay(user);
+    const attackLink = createAttackLink(user.id, displayStatus);
+    const newRow = createTableRow(user, displayStatus, attackLink, rowIndex);
     tableBody.innerHTML += newRow;
     rowIndex++;
   });
@@ -506,7 +499,7 @@ function createTableRow(row, status, attackLink, index) {
   const borderClass = isNotFirst ? 'border-t border-gray-200 dark:border-gray-700' : '';
 
   return `
-    <tr>
+    <tr data-id="${row.id}">
       <td class="relative py-4 pl-4 pr-3 text-sm sm:pl-6 min-w-0 ${borderClass}">
         <div class="font-medium text-gray-900 dark:text-gray-300">
             <a href="https://www.torn.com/profiles.php?XID=${row.id}" target="_blank">
